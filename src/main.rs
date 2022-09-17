@@ -30,7 +30,7 @@ lazy_static! {
 fn main() {
     let now = Instant::now();
 
-    process(Path::new("D:/rust/bisne-test"), "2022-08-01", "gz")
+    process(Path::new("D:/rust/workspace/bisne-test"), "2022-08-01", "gz")
         .unwrap_or_else(|x| println!("Error: {}", x));
 
     let elapsed = now.elapsed();
@@ -69,12 +69,22 @@ fn process(path: &Path, prefix: &str, extension: &str) -> Result<(), Box<dyn Err
 }
 
 fn visit_file(file: File) {
-	let gz = GzDecoder::new(BufReader::new(file));
+	/*let gz = GzDecoder::new(BufReader::new(file));
     for line in BufReader::with_capacity(24 * 1024, gz).lines() {
 		if let Ok(line) = line {
             parse_event(line.as_str());
         }
-    }
+    }*/
+	let gz = GzDecoder::new(BufReader::new(file));
+	let _found = thread_io::read::reader(256 * 1024, 8, gz, |reader| {
+		let mut buf_reader = BufReader::new(reader);
+		let mut line = String::new();
+		while buf_reader.read_line(&mut line)? > 0 {
+            parse_event(line.as_str());
+            line.clear();
+        }
+		Ok::<_, std::io::Error>(true)
+	}).unwrap();
 }
 
 // repo score
