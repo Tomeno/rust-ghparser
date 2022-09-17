@@ -75,9 +75,9 @@ fn visit_file(file: File) {
             parse_event(line.as_str());
         }
     }*/
-	let gz = GzDecoder::new(BufReader::new(file));
+	let gz = GzDecoder::new(file);
 	let _found = thread_io::read::reader(256 * 1024, 8, gz, |reader| {
-		let mut buf_reader = BufReader::new(reader);
+		let mut buf_reader = BufReader::with_capacity(256 * 1024, reader);
 		let mut line = String::new();
 		while buf_reader.read_line(&mut line)? > 0 {
             parse_event(line.as_str());
