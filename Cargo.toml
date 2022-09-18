@@ -19,3 +19,6 @@ mimalloc = "0.1.29"
 thread_io = "0.3.0"
 
 memmap2 = "0.5.7"
+
+[profile.release]
+# lto = "fat" # way long compiles, small boost
