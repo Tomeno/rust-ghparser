@@ -6,19 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lazy_static = "1.4.0"
 flate2 = { version = "1.0.24", features = ["zlib-ng"], default-features = false }
 serde = { version = "1.0.144", features = [ "derive" ] }
-
-serde_json = "1.0.85"
-# simd-json = "0.6.0"
-
 regex = "1.6.0"
-lazy_static = "1.4.0"
-
-mimalloc = "0.1.29"
+# serde_json = "1.0.85"
+simd-json = { version = "0.6.0", features = [ "known-key" ] }
 thread_io = "0.3.0"
-
-memmap2 = "0.5.7"
+rayon = "1.5.3"
+mimalloc = "0.1.29"
 
 [profile.release]
-# lto = "fat" # way long compiles, small boost
+lto = "thin" # way long compiles, small boost

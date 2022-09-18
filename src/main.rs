@@ -1,4 +1,6 @@
 #![feature(is_some_with)]
+#![feature(portable_simd)]
+//use core::simd;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fs;
@@ -9,8 +11,8 @@ use flate2::read::GzDecoder;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 use regex::Regex;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Mutex;
+use std::collections::BTreeMap;
+use rayon::prelude::*;
 
 use mimalloc::MiMalloc;
 #[global_allocator]
@@ -21,10 +23,6 @@ extern crate lazy_static;
 
 lazy_static! {
 	static ref TYPE_REGEX: Regex = Regex::new(r#""type":"([A-Za-z]+)""#).unwrap();
-	/*static ref STORAGE_MUT: Mutex<BTreeMap::<u64, RepoScore>> = {
-		let mut m = BTreeMap::<u64, RepoScore>::new();
-		Mutex::new(m)
-	};*/
 }
 
 
@@ -43,13 +41,12 @@ impl ParserInstance {
 	fn run(&mut self) -> Result<(), &'static str> {
 		let p = Path::new(self.path.as_str());
 		let f = File::open(p).unwrap();
-		let mmap = unsafe { memmap2::Mmap::map(&f).expect("Error mapping file") };
-		let gz = GzDecoder::new(&mmap[..]);
+		let gz = GzDecoder::new(BufReader::with_capacity(32*1024, f));
 		let _found = thread_io::read::reader(256 * 1024, 8, gz, |reader| {
 			let mut buf_reader = BufReader::with_capacity(256 * 1024, reader);
 			let mut line = String::new();
 			while buf_reader.read_line(&mut line)? > 0 {
-				self.parse_event(line.as_str());
+				self.parse_event(line.as_mut_str());
 				line.clear();
 			}
 			Ok::<_, std::io::Error>(true)
@@ -57,7 +54,7 @@ impl ParserInstance {
 		return Ok(());
 	}
 
-	fn parse_event(&mut self, event: &str) {
+	fn parse_event(&mut self, event: &mut str) {
 		let mat = self.regex.find(event);
 		if let Some(mat) = mat {
 			match &event[mat.start()+8..mat.end()-1] {
@@ -69,6 +66,7 @@ impl ParserInstance {
 				}
 				_ => {
 					// untracked
+					// let parsed_event: Event = simd_json::from_str(event).unwrap();
 				}
 			}
 		} else {
@@ -81,45 +79,30 @@ impl ParserInstance {
 fn main() {
     let now = Instant::now();
 
-    process(Path::new("D:/rust/workspace/bisne-test"), "2022-08-01", "gz")
+    process(Path::new("D:/rust/workspace/bisne-test/data"), "2022-08-01", "gz")
         .unwrap_or_else(|x| println!("Error: {}", x));
 
     let elapsed = now.elapsed();
     println!("Elapsed: {:.2?}", elapsed);
-	
-	/*let storage = STORAGE_MUT.lock().unwrap();
-    println!("count: {}", storage.len());
-	let mut i = 0;
-	for (id, repo) in storage.iter() {
-		if (repo.prs_opened + repo.pushes + repo.commits) < 5 {
-			continue;
-		}
-		println!("{}:\n\tprs: {}\n\tpushes: {}\n\tcommits: {}", repo.name, repo.prs_opened, repo.pushes, repo.commits);
-		i += 1;
-		if i >= 10 {
-			break;
-		}
-	}*/
 }
 
 
 fn process(path: &Path, prefix: &str, extension: &str) -> Result<(), Box<dyn Error>> {
-    for entry in fs::read_dir(&path)?
+    fs::read_dir(&path)?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().is_some_and(|&e| e == OsStr::new(extension)))
-    {
-        if let Some(filename) = entry.file_name().to_str() {
-            if filename.starts_with(prefix) {
-                println!("Visiting file {}", filename);
-                //visit_file(File::open(entry.path())?);
-				let mut parser = ParserInstance::new(entry.path().to_str().unwrap(), 0);
-				parser.run().unwrap();
-				let storage = parser.storage;
-				println!("file {}: count: {}", filename, storage.len());
-            }
-        }
-    }
-
+		.par_bridge() // rayon moment
+		.for_each(|entry| {
+			if let Some(filename) = entry.file_name().to_str() {
+				if filename.starts_with(prefix) {
+					println!("Visiting file {}", filename);
+					let mut parser = ParserInstance::new(entry.path().to_str().unwrap(), 0);
+					parser.run().unwrap();
+					let storage = parser.storage;
+					println!("file {}: count: {}", filename, storage.len());
+				}
+			}
+		});
     return Ok(());
 }
 
@@ -152,12 +135,12 @@ impl RepoScore {
 
 // general
 
-/*
+
 #[derive(Serialize, Deserialize)]
 struct Event {
     r#type: String,
 }
-*/
+
 
 #[derive(Serialize, Deserialize)]
 struct RepoInfo {
@@ -177,8 +160,8 @@ struct PullRequestEventPayload {
 }
 
 impl ParserInstance {
-	fn parse_pull_request_event(&mut self, event: &str) {
-		let parsed_event: PullRequestEvent = serde_json::from_str(event).unwrap();
+	fn parse_pull_request_event(&mut self, event: &mut str) {
+		let parsed_event: PullRequestEvent = simd_json::from_str(event).unwrap();
 		match parsed_event.payload.action.as_str() {
 			"opened" => {
 				let repo = RepoScore::fetch_or_new(
@@ -205,8 +188,8 @@ struct PushEventPayload {
 }
 
 impl ParserInstance {
-	fn parse_push_event(&mut self, event: &str) {
-		let parsed_event: PushEvent = serde_json::from_str(event).unwrap();
+	fn parse_push_event(&mut self, event: &mut str) {
+		let parsed_event: PushEvent = simd_json::from_str(event).unwrap();
 		if parsed_event.payload.distinct_size > 0 {
 			let repo = RepoScore::fetch_or_new(
 				self.storage.as_mut(), parsed_event.repo.id, parsed_event.repo.name.as_str()
