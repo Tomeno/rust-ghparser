@@ -14,7 +14,7 @@ regex = "1.6.0"
 simd-json = { version = "0.6.0", features = [ "known-key" ] }
 thread_io = "0.3.0"
 rayon = "1.5.3"
-mimalloc = "0.1.29"
+rpmalloc = { version = "0.2.2", features = ["adaptive_thread_cache"] }
 
 [profile.release]
 lto = "thin" # way long compiles, small boost

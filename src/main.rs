@@ -14,9 +14,8 @@ use regex::Regex;
 use std::collections::BTreeMap;
 use rayon::prelude::*;
 
-use mimalloc::MiMalloc;
 #[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+static ALLOC: rpmalloc::RpMalloc = rpmalloc::RpMalloc;
 
 #[macro_use]
 extern crate lazy_static;
