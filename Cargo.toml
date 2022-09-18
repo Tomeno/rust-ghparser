@@ -17,3 +17,5 @@ lazy_static = "1.4.0"
 
 mimalloc = "0.1.29"
 thread_io = "0.3.0"
+
+memmap2 = "0.5.7"

@@ -75,7 +75,8 @@ fn visit_file(file: File) {
             parse_event(line.as_str());
         }
     }*/
-	let gz = GzDecoder::new(file);
+	let mmap = unsafe { memmap2::Mmap::map(&file).expect("Error mapping file") };
+	let gz = GzDecoder::new(&mmap[..]);
 	let _found = thread_io::read::reader(256 * 1024, 8, gz, |reader| {
 		let mut buf_reader = BufReader::with_capacity(256 * 1024, reader);
 		let mut line = String::new();
